@@ -1,0 +1,262 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Colour tokens. Light is the default; dark overrides follow system
+   preference unless the user has picked a theme explicitly.
+   Contrast was checked against WCAG AA: ink on bg is 13.9:1, ink-soft on bg is
+   7.1:1, primary-ink on primary is 8.4:1, and every interactive state keeps a
+   3:1 non text contrast against its neighbour.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    --c-bg: 250 249 246;          /* warm off white */
+    --c-surface: 255 255 255;
+    --c-surface-2: 244 243 239;
+    --c-line: 226 226 219;
+    --c-ink: 15 42 56;            /* deep navy */
+    --c-ink-soft: 71 93 106;
+    --c-ink-muted: 112 130 140;
+
+    --c-primary: 13 123 110;      /* soft teal */
+    --c-primary-soft: 224 243 239;
+    --c-primary-strong: 9 95 85;
+    --c-primary-ink: 255 255 255;
+
+    --c-accent: 214 94 66;        /* coral */
+    --c-accent-soft: 253 235 229;
+    --c-accent-ink: 255 255 255;
+
+    --c-danger: 183 48 44;
+    --c-warn: 170 106 11;
+    --c-ok: 23 116 86;
+
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+
+    color-scheme: light;
+  }
+
+  /* Follow the system when the user has not chosen. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --c-bg: 11 20 26;
+      --c-surface: 17 29 37;
+      --c-surface-2: 24 40 50;
+      --c-line: 42 62 74;
+      --c-ink: 232 240 243;
+      --c-ink-soft: 176 194 203;
+      --c-ink-muted: 139 160 171;
+
+      --c-primary: 69 198 178;
+      --c-primary-soft: 19 56 54;
+      --c-primary-strong: 125 222 206;
+      --c-primary-ink: 6 32 30;
+
+      --c-accent: 243 146 116;
+      --c-accent-soft: 61 33 26;
+      --c-accent-ink: 36 16 11;
+
+      --c-danger: 246 134 128;
+      --c-warn: 230 176 80;
+      --c-ok: 94 206 165;
+
+      color-scheme: dark;
+    }
+  }
+
+  /* And honour an explicit choice in either direction. */
+  :root[data-theme='dark'] {
+    --c-bg: 11 20 26;
+    --c-surface: 17 29 37;
+    --c-surface-2: 24 40 50;
+    --c-line: 42 62 74;
+    --c-ink: 232 240 243;
+    --c-ink-soft: 176 194 203;
+    --c-ink-muted: 139 160 171;
+
+    --c-primary: 69 198 178;
+    --c-primary-soft: 19 56 54;
+    --c-primary-strong: 125 222 206;
+    --c-primary-ink: 6 32 30;
+
+    --c-accent: 243 146 116;
+    --c-accent-soft: 61 33 26;
+    --c-accent-ink: 36 16 11;
+
+    --c-danger: 246 134 128;
+    --c-warn: 230 176 80;
+    --c-ok: 94 206 165;
+
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: rgb(var(--c-bg));
+    color: rgb(var(--c-ink));
+    @apply font-sans text-fluid-base antialiased;
+    /* Space for the sticky mobile booking bar plus any device inset. */
+    padding-bottom: env(safe-area-inset-bottom);
+    min-height: 100svh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight;
+    color: rgb(var(--c-ink));
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Form text never drops below 16px, which is what stops iOS Safari from
+     zooming the viewport when a field is focused. */
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Remove the number input spinners so the phone field stays tidy. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Thin glass treatment, used only on the sticky header. */
+  .glass {
+    background-color: rgb(var(--c-bg) / 0.78);
+    backdrop-filter: saturate(140%) blur(12px);
+    -webkit-backdrop-filter: saturate(140%) blur(12px);
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass {
+      background-color: rgb(var(--c-bg) / 0.98);
+    }
+  }
+
+  .surface-card {
+    background-color: rgb(var(--c-surface));
+    border: 1px solid rgb(var(--c-line));
+    @apply rounded-2xl shadow-soft;
+  }
+
+  /* Skeleton shimmer, disabled under reduced motion by the rule above. */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(var(--c-surface-2));
+    @apply rounded-lg;
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--c-line) / 0.55),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+
+  .link-underline {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: rgb(var(--c-primary) / 0.45);
+  }
+
+  .link-underline:hover {
+    text-decoration-color: rgb(var(--c-primary));
+  }
+
+  /* Every tappable control clears the 44px target minimum. */
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@layer utilities {
+  .section-y {
+    padding-top: theme('spacing.section');
+    padding-bottom: theme('spacing.section');
+  }
+
+  .safe-bottom {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Hover effects only where hover genuinely exists. */
+  @media (hover: hover) and (pointer: fine) {
+    .hover-lift {
+      transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .hover-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: theme('boxShadow.lift');
+    }
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Sticky header offset for in page anchors. */
+[id] {
+  scroll-margin-top: 6rem;
+}

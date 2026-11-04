@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lumina Family Clinic">
+  <rect width="64" height="64" rx="16" fill="#0D7B6E"/>
+  <g stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" fill="none">
+    <path d="M14 44h36"/>
+    <path d="M22 44a10 10 0 0 1 20 0"/>
+  </g>
+  <g stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.75">
+    <path d="M32 12v6"/>
+    <path d="M16.5 18.5l4 4"/>
+    <path d="M47.5 18.5l-4 4"/>
+  </g>
+</svg>
