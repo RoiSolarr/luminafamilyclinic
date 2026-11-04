@@ -46,6 +46,33 @@ export const dateOfBirthSchema = dateString.refine(
   { message: 'Enter a date of birth in the past' },
 )
 
+/**
+ * A boolean that survives being sent as a string.
+ *
+ * Zapier, and most no code tools, send every field as text. `z.coerce.boolean()`
+ * is the wrong tool for that, because it follows JavaScript truthiness: the
+ * string "false" is a non empty string, so it coerces to `true`. That turns
+ * every "no" into a "yes" silently, which is how a red flag ended up on a
+ * routine dental booking.
+ *
+ * This accepts real booleans, numbers, and the usual text spellings, and
+ * rejects anything it does not recognise rather than guessing.
+ */
+const booleanish = z.preprocess((value) => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true
+    if (['false', '0', 'no', 'n', 'off', '', 'null', 'undefined'].includes(normalized)) {
+      return false
+    }
+  }
+  // Anything else falls through and fails z.boolean(), which is deliberate:
+  // a typo should be a visible 400, not a silent true.
+  return value
+}, z.boolean())
+
 export const patientTypeSchema = z.enum(['new', 'returning'])
 export const reminderChannelSchema = z.enum(['email', 'sms'])
 export const contactTopicSchema = z.enum(['billing', 'appointment', 'general', 'complaint'])
@@ -141,10 +168,10 @@ export const zapierCallbackSchema = z.discriminatedUnion('type', [
     bookingRef: bookingRefSchema,
     aiUrgency: aiUrgencySchema.optional(),
     aiSummary: trimmed(1000).optional(),
-    aiRedFlag: z.coerce.boolean().optional(),
+    aiRedFlag: booleanish.optional(),
     aiConfirmationMessage: trimmed(1000).optional(),
     /** Set to true once the Zap has confirmed the booking end to end. */
-    confirm: z.coerce.boolean().optional(),
+    confirm: booleanish.optional(),
   }),
   z.object({
     type: z.literal('calendar_event'),
