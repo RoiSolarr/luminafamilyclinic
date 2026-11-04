@@ -6,6 +6,8 @@ import { bookRequestSchema } from '@/lib/validation'
 import { createBooking, flagAutomationRetry, getOrganization, manageUrlFor } from '@/lib/repo'
 import { NoProviderError, NotFoundError, SlotTakenError } from '@/lib/types'
 import { sendToZapier } from '@/lib/zapier'
+import { sendEmail } from '@/lib/email'
+import { bookingConfirmationEmail } from '@/lib/email-templates'
 import { errorInfo, log } from '@/lib/logger'
 import { sanitizeText } from '@/lib/utils'
 
@@ -110,11 +112,38 @@ export async function POST(request: NextRequest) {
       await flagAutomationRetry(appointment.id)
     }
 
+    // Normally the confirmation goes out from the Zapier callback, once the
+    // triage message exists. If the automation never received the booking, no
+    // callback is coming, so send a plain confirmation from here instead.
+    // The two paths are mutually exclusive, so the patient never gets both.
+    let emailDelivered = false
+    if (!dispatch.delivered) {
+      const result = await sendEmail(
+        bookingConfirmationEmail({
+          bookingRef: appointment.bookingRef,
+          patientName: appointment.patientName,
+          patientEmail: appointment.patientEmail,
+          serviceName: appointment.serviceName,
+          providerName: appointment.providerName,
+          localDate: appointment.localDate,
+          localTime: appointment.localTime,
+          localEndTime: appointment.localEndTime,
+          durationMinutes: appointment.durationMinutes,
+          isTelehealth: appointment.isTelehealth,
+          timezone: appointment.timezone,
+          manageUrl,
+          aiConfirmationMessage: null,
+        }),
+      )
+      emailDelivered = result.delivered
+    }
+
     log.info('book.created', {
       bookingRef: appointment.bookingRef,
       providerId: appointment.providerId,
       serviceId: appointment.serviceId,
       automationDelivered: dispatch.delivered,
+      emailDelivered,
     })
 
     return ok({
@@ -134,7 +163,9 @@ export async function POST(request: NextRequest) {
       durationMinutes: appointment.durationMinutes,
       isTelehealth: appointment.isTelehealth,
       patientName: appointment.patientName,
-      automationQueued: dispatch.delivered,
+      // True when the patient can expect a confirmation: either the automation
+      // took the booking, or we sent the email ourselves.
+      automationQueued: dispatch.delivered || emailDelivered,
     })
   } catch (err) {
     if (err instanceof SlotTakenError) {

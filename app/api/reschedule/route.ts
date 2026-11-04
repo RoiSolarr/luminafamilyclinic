@@ -13,6 +13,9 @@ import {
 import { getAvailability } from '@/lib/availability'
 import { verifyManageToken } from '@/lib/tokens'
 import { sendToZapier } from '@/lib/zapier'
+import { sendEmail } from '@/lib/email'
+import { bookingRescheduledEmail } from '@/lib/email-templates'
+import { siteUrl } from '@/config/clinic'
 import { errorInfo, log } from '@/lib/logger'
 import { NotFoundError, SlotTakenError } from '@/lib/types'
 
@@ -112,7 +115,31 @@ export async function POST(request: NextRequest) {
       { bookingRef },
     )
 
-    log.info('reschedule.done', { bookingRef, providerId: after.providerId })
+    // The patient still holds the same manage token, so the link stays valid.
+    const email = await sendEmail(
+      bookingRescheduledEmail({
+        bookingRef: after.bookingRef,
+        patientName: after.patientName,
+        patientEmail: after.patientEmail,
+        serviceName: after.serviceName,
+        providerName: after.providerName,
+        localDate: after.localDate,
+        localTime: after.localTime,
+        localEndTime: after.localEndTime,
+        durationMinutes: after.durationMinutes,
+        isTelehealth: after.isTelehealth,
+        timezone: after.timezone,
+        manageUrl: `${siteUrl()}/manage?ref=${encodeURIComponent(after.bookingRef)}&token=${encodeURIComponent(token)}`,
+        previousDate: before.localDate,
+        previousTime: before.localTime,
+      }),
+    )
+
+    log.info('reschedule.done', {
+      bookingRef,
+      providerId: after.providerId,
+      emailDelivered: email.delivered,
+    })
 
     return ok({
       bookingRef: after.bookingRef,

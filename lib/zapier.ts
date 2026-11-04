@@ -48,7 +48,7 @@ export async function sendToZapier(
 
   if (!url) {
     // Expected while the Zaps are still being built. Not an error.
-    log.info('zapier.skipped', { hook, reason: 'not_configured', ...context })
+    log.info('zapier.skipped', { hook, skipReason: 'not_configured', ...context })
     return { delivered: false, reason: 'not_configured', attempts: 0 }
   }
 
@@ -87,7 +87,7 @@ export async function sendToZapier(
     }
   }
 
-  log.error('zapier.exhausted', { hook, attempts: MAX_ATTEMPTS, reason: lastReason, ...context })
+  log.error('zapier.exhausted', { hook, attempts: MAX_ATTEMPTS, failureReason: lastReason, ...context })
   return { delivered: false, reason: lastReason, attempts: MAX_ATTEMPTS }
 }
 

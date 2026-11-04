@@ -172,6 +172,15 @@ export const zapierCallbackSchema = z.discriminatedUnion('type', [
     aiConfirmationMessage: trimmed(1000).optional(),
     /** Set to true once the Zap has confirmed the booking end to end. */
     confirm: booleanish.optional(),
+    /**
+     * The raw manage token, passed back so the confirmation email can carry a
+     * working link. Only the hash is stored, so the server cannot rebuild it.
+     *
+     * The token is accepted rather than a whole URL on purpose: the server
+     * builds the link from its own site URL, so a compromised automation
+     * cannot make us email patients a link to somewhere else.
+     */
+    manageToken: z.string().min(16).max(64).optional(),
   }),
   z.object({
     type: z.literal('calendar_event'),

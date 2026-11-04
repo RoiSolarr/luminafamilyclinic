@@ -6,6 +6,8 @@ import { cancelRequestSchema } from '@/lib/validation'
 import { cancelAppointment, findAppointmentByRef, getManageTokenHash } from '@/lib/repo'
 import { verifyManageToken } from '@/lib/tokens'
 import { sendToZapier } from '@/lib/zapier'
+import { sendEmail } from '@/lib/email'
+import { bookingCancelledEmail } from '@/lib/email-templates'
 import { errorInfo, log } from '@/lib/logger'
 import { sanitizeText } from '@/lib/utils'
 import { NotFoundError } from '@/lib/types'
@@ -78,7 +80,29 @@ export async function POST(request: NextRequest) {
       { bookingRef },
     )
 
-    log.info('cancel.done', { bookingRef, providerId: after.providerId })
+    // Sent from here rather than from an automation, so the patient hears back
+    // even if no cancel Zap has been built yet.
+    const email = await sendEmail(
+      bookingCancelledEmail({
+        bookingRef: after.bookingRef,
+        patientName: after.patientName,
+        patientEmail: after.patientEmail,
+        serviceName: after.serviceName,
+        providerName: after.providerName,
+        localDate: after.localDate,
+        localTime: after.localTime,
+        localEndTime: after.localEndTime,
+        durationMinutes: after.durationMinutes,
+        isTelehealth: after.isTelehealth,
+        timezone: after.timezone,
+      }),
+    )
+
+    log.info('cancel.done', {
+      bookingRef,
+      providerId: after.providerId,
+      emailDelivered: email.delivered,
+    })
 
     return ok({ bookingRef, status: after.status, alreadyCancelled: false })
   } catch (err) {

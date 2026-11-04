@@ -4,12 +4,16 @@ import { fail, failUnauthorized, failServer, failValidation, ok, readJson } from
 import { zapierCallbackSchema } from '@/lib/validation'
 import { verifyZapierSecret } from '@/lib/tokens'
 import {
+  findAppointmentByRef,
   markReminder,
   saveCalendarEventId,
   saveContactTriage,
   saveFeedback,
   saveTriage,
 } from '@/lib/repo'
+import { sendEmail } from '@/lib/email'
+import { bookingConfirmationEmail } from '@/lib/email-templates'
+import { siteUrl } from '@/config/clinic'
 import { errorInfo, log } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -55,7 +59,41 @@ export async function POST(request: NextRequest) {
           urgency: payload.aiUrgency,
           redFlag: payload.aiRedFlag,
         })
-        return ok({ applied: 'booking_triage' })
+
+        // The confirmation is sent from here rather than from the automation,
+        // because this is the first moment the triage message exists. The Zap
+        // only has to call the callback; it no longer needs a mail step.
+        let emailDelivered = false
+        if (payload.confirm) {
+          const appointment = await findAppointmentByRef(payload.bookingRef)
+          if (appointment) {
+            const result = await sendEmail(
+              bookingConfirmationEmail({
+                bookingRef: appointment.bookingRef,
+                patientName: appointment.patientName,
+                patientEmail: appointment.patientEmail,
+                serviceName: appointment.serviceName,
+                providerName: appointment.providerName,
+                localDate: appointment.localDate,
+                localTime: appointment.localTime,
+                localEndTime: appointment.localEndTime,
+                durationMinutes: appointment.durationMinutes,
+                isTelehealth: appointment.isTelehealth,
+                timezone: appointment.timezone,
+                // Only present when the Zap passes the token back. The link is
+                // built here from our own site URL rather than accepted whole.
+                manageUrl: payload.manageToken
+                  ? `${siteUrl()}/manage?ref=${encodeURIComponent(appointment.bookingRef)}` +
+                    `&token=${encodeURIComponent(payload.manageToken)}`
+                  : null,
+                aiConfirmationMessage: payload.aiConfirmationMessage ?? appointment.aiConfirmationMessage,
+              }),
+            )
+            emailDelivered = result.delivered
+          }
+        }
+
+        return ok({ applied: 'booking_triage', emailDelivered })
       }
 
       case 'calendar_event': {
