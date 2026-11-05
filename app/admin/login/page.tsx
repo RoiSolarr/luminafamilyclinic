@@ -30,13 +30,18 @@ export default function AdminLoginPage() {
       />
 
       <div className="relative w-full max-w-md">
-        <Link
-          href="/"
-          className="link-underline mb-6 inline-flex items-center gap-1.5 text-fluid-sm text-ink-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to the clinic site
-        </Link>
+        {/* Left aligned with the card below it, so the eye travels down a
+            single edge rather than hopping from centre to left. */}
+        <div className="mb-6 flex">
+          <Link
+            href="/"
+            prefetch={false}
+            className="link-underline inline-flex items-center gap-1.5 text-fluid-sm text-ink-muted transition-colors hover:text-ink"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to the clinic site
+          </Link>
+        </div>
 
         <div className="surface-card p-6 xs:p-8">
           <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-ink">

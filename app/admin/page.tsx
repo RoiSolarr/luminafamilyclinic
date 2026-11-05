@@ -15,7 +15,6 @@ import { formatClockTime, formatLongDate, todayInZone } from '@/lib/time'
 import { STATUS_LABEL, URGENCY_LABEL } from '@/lib/utils'
 import { Badge, Card, EmptyState, type BadgeTone } from '@/components/ui/primitives'
 import { AdminFilters } from '@/components/admin/filters'
-import { SignOutButton } from '@/components/admin/sign-out-button'
 import type { AppointmentStatus } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -46,6 +45,8 @@ type SearchParams = {
   provider?: string
   status?: string
   past?: string
+  /** Free text search across reference, patient name, email and phone. */
+  q?: string
 }
 
 export default async function AdminPage({
@@ -61,7 +62,12 @@ export default async function AdminPage({
     providerId: searchParams.provider || undefined,
     status: (searchParams.status as AppointmentStatus) || undefined,
     includePast: searchParams.past === '1',
+    search: searchParams.q || undefined,
   }
+
+  const hasFilters = Boolean(
+    filters.date || filters.providerId || filters.status || filters.includePast || filters.search,
+  )
 
   const [appointments, providers, messages] = await Promise.all([
     listAppointmentsForAdmin(filters),
@@ -91,17 +97,36 @@ export default async function AdminPage({
             <Plug className="h-3.5 w-3.5" aria-hidden="true" />
             {hooksConfigured} of 4 Zapier hooks set
           </Badge>
-          <SignOutButton />
         </div>
       </header>
 
+      {/* Filters come before the counts, because the counts describe whatever
+          the filters have selected. Showing them the other way round invites
+          someone to read "11 appointments" as a total. */}
+      <section className="mt-8" aria-labelledby="filters-heading">
+        <h2 id="filters-heading" className="sr-only">
+          Filters
+        </h2>
+        <AdminFilters
+          providers={providers.map((p) => ({ id: p.id, fullName: p.fullName }))}
+          today={today}
+          current={{
+            date: searchParams.date ?? '',
+            provider: searchParams.provider ?? '',
+            status: searchParams.status ?? '',
+            past: searchParams.past === '1',
+            q: searchParams.q ?? '',
+          }}
+        />
+      </section>
+
       {/* ------------------------------------------------------- summary */}
-      <div className="mt-8 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
+      <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
         <StatCard
           icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
           label="Appointments listed"
           value={String(appointments.length)}
-          hint={filters.date ? `on ${filters.date}` : 'upcoming'}
+          hint={hasFilters ? 'matching your filters' : 'upcoming'}
         />
         <StatCard
           icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
@@ -117,23 +142,6 @@ export default async function AdminPage({
           hint={`${messages.length} in total`}
         />
       </div>
-
-      {/* ------------------------------------------------------- filters */}
-      <section className="mt-8" aria-labelledby="filters-heading">
-        <h2 id="filters-heading" className="sr-only">
-          Filters
-        </h2>
-        <AdminFilters
-          providers={providers.map((p) => ({ id: p.id, fullName: p.fullName }))}
-          today={today}
-          current={{
-            date: searchParams.date ?? '',
-            provider: searchParams.provider ?? '',
-            status: searchParams.status ?? '',
-            past: searchParams.past === '1',
-          }}
-        />
-      </section>
 
       {/* -------------------------------------------------- appointments */}
       <section className="mt-8" aria-labelledby="appointments-heading">

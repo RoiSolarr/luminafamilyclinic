@@ -110,10 +110,12 @@ export function AdminLoginForm() {
             aria-pressed={reveal}
             className="tap-target absolute right-1 top-1/2 inline-flex -translate-y-1/2 items-center justify-center rounded-lg text-ink-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
+            {/* The icon shows the current state, not the action: an open eye
+                means the password is visible, a closed eye means it is hidden. */}
             {reveal ? (
-              <EyeOff className="h-5 w-5" aria-hidden="true" />
-            ) : (
               <Eye className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <EyeOff className="h-5 w-5" aria-hidden="true" />
             )}
           </button>
         </div>

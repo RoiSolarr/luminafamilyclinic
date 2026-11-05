@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 
 import { getDb, MOCK_MODE, schema } from '@/db'
@@ -810,6 +810,12 @@ export type AdminFilters = {
   status?: AppointmentStatus
   /** Include appointments that have already happened. */
   includePast?: boolean
+  /**
+   * Free text, matched against booking reference, patient name, email and
+   * phone. This is what reception actually needs: someone is on the phone and
+   * all they can offer is a surname or a reference read off an email.
+   */
+  search?: string
 }
 
 export async function listAppointmentsForAdmin(
@@ -818,13 +824,65 @@ export async function listAppointmentsForAdmin(
 ): Promise<AppointmentRecord[]> {
   const org = await getOrganization()
 
+  // Digits only, so a search for "09175550142" still finds "+63 917 555 0142".
+  const searchTerm = filters.search?.trim().toLowerCase() ?? ''
+
+  /**
+   * Digit forms a phone search should match.
+   *
+   * One number gets written several ways. A record holding "+63 917 555 0142"
+   * has the digits 639175550142, but staff will usually type the local form,
+   * 0917 555 0142, whose digits are 09175550142. Neither contains the other,
+   * so matching on the raw digits alone finds nothing.
+   *
+   * Dropping a leading 0 and a leading country code covers both directions
+   * without guessing at a specific country's rules.
+   */
+  function phoneVariants(value: string): string[] {
+    const digits = value.replace(/\D/g, '')
+    if (digits.length < 4) return []
+
+    const variants = new Set<string>([digits])
+    if (digits.startsWith('0')) variants.add(digits.slice(1))
+    if (digits.startsWith('63')) variants.add(digits.slice(2))
+    // The last nine digits are the subscriber part of a PH mobile number and
+    // are the same however the number was written.
+    if (digits.length > 9) variants.add(digits.slice(-9))
+
+    return [...variants].filter((v) => v.length >= 4)
+  }
+
+  const searchPhoneForms = phoneVariants(searchTerm)
+
+  const matchesSearch = (r: AppointmentRecord) => {
+    if (!searchTerm) return true
+    const haystack = [r.bookingRef, r.patientName, r.patientEmail, r.serviceName, r.providerName]
+      .join(' ')
+      .toLowerCase()
+    if (haystack.includes(searchTerm)) return true
+
+    if (searchPhoneForms.length > 0) {
+      const stored = r.patientPhone.replace(/\D/g, '')
+      if (searchPhoneForms.some((form) => stored.includes(form))) return true
+    }
+    return false
+  }
+
   const matches = (r: AppointmentRecord) => {
     if (filters.date && r.localDate !== filters.date) return false
     if (filters.providerId && r.providerId !== filters.providerId) return false
     if (filters.status && r.status !== filters.status) return false
-    if (!filters.includePast && !filters.date && new Date(r.endsAt).getTime() < Date.now())
+    // A search is for finding a specific booking, which is usually in the past.
+    // Restricting it to upcoming would make it useless for the common case.
+    if (
+      !filters.includePast &&
+      !filters.date &&
+      !searchTerm &&
+      new Date(r.endsAt).getTime() < Date.now()
+    ) {
       return false
-    return true
+    }
+    return matchesSearch(r)
   }
 
   if (MOCK_MODE) {
@@ -840,8 +898,34 @@ export async function listAppointmentsForAdmin(
   const conditions = [eq(schema.appointments.organizationId, org.id)]
   if (filters.providerId) conditions.push(eq(schema.appointments.providerId, filters.providerId))
   if (filters.status) conditions.push(eq(schema.appointments.status, filters.status))
-  if (!filters.includePast && !filters.date) {
+  if (!filters.includePast && !filters.date && !searchTerm) {
     conditions.push(gte(schema.appointments.endsAt, new Date()))
+  }
+
+  // Narrow in SQL on the columns an index can help with, then let `matches`
+  // below do the rest. Without this a search would scan the whole table and
+  // then throw most of it away in JavaScript.
+  if (searchTerm) {
+    const like = `%${searchTerm}%`
+    const clauses = [
+      ilike(schema.appointments.bookingRef, like),
+      ilike(schema.patients.fullName, like),
+      ilike(schema.patients.email, like),
+      // The joined names are searched here too. Leaving them to the in memory
+      // pass below would not work: a row SQL has already excluded can never be
+      // matched afterwards.
+      ilike(schema.services.name, like),
+      ilike(schema.providers.fullName, like),
+    ]
+    for (const form of searchPhoneForms) {
+      // Strip punctuation from the stored number before comparing, so the
+      // format a patient typed does not decide whether staff can find them.
+      clauses.push(
+        sql`regexp_replace(${schema.patients.phone}, '[^0-9]', '', 'g') LIKE ${`%${form}%`}`,
+      )
+    }
+    const combined = or(...clauses)
+    if (combined) conditions.push(combined)
   }
 
   const rows = await db
@@ -869,6 +953,8 @@ export async function listAppointmentsForAdmin(
         timezone: org.timezone,
       }),
     )
+    // The date filter is applied here rather than in SQL because a calendar
+    // date only has meaning once the instant is read in the clinic timezone.
     .filter((r) => (filters.date ? r.localDate === filters.date : true))
 }
 
