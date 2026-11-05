@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     const manageUrl = manageUrlFor(appointment.bookingRef, manageToken)
 
-    // Documented booking payload. See docs/ZAPIER_SETUP.md.
+    // Documented booking payload. See docs/AUTOMATION.md.
     const dispatch = await sendToZapier(
       'booking',
       {

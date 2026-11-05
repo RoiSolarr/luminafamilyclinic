@@ -27,7 +27,7 @@ export const runtime = 'nodejs'
  * database credential, and this endpoint can only write the handful of fields
  * the automations are responsible for.
  *
- * Payload shapes are documented in docs/ZAPIER_SETUP.md.
+ * Payload shapes are documented in docs/AUTOMATION.md.
  */
 export async function POST(request: NextRequest) {
   if (!verifyZapierSecret(request.headers.get('x-zapier-secret'))) {
