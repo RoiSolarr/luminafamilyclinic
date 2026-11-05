@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/primitives'
 import { StepTransition } from '@/components/motion'
 import { useToast } from '@/components/ui/toast'
+import { useBlockingLoader } from '@/components/loading-overlay'
 
 import { Stepper } from './stepper'
 import { StepService } from './step-service'
@@ -39,6 +40,7 @@ const STORAGE_KEY = 'lumina-booking-wizard-v1'
 export function BookingWizard({ services, providers, org, today }: WizardContext) {
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const loader = useBlockingLoader()
 
   const [state, setState] = React.useState<WizardState>({
     step: 1,
@@ -238,6 +240,7 @@ export function BookingWizard({ services, providers, org, today }: WizardContext
   const submit = async () => {
     if (!service || !state.date || !state.time) return
     setSubmitting(true)
+    const done = loader.start('Confirming your appointment')
 
     try {
       const response = await fetch('/api/book', {
@@ -300,6 +303,7 @@ export function BookingWizard({ services, providers, org, today }: WizardContext
       })
     } finally {
       setSubmitting(false)
+      done()
     }
   }
 

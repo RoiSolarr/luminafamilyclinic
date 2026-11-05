@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, EmptyState } from '@/components/ui/primitives'
 import { TextAreaField } from '@/components/ui/field'
 import { useToast } from '@/components/ui/toast'
+import { useBlockingLoader } from '@/components/loading-overlay'
 
 const RATING_LABELS = ['Poor', 'Not great', 'Fine', 'Good', 'Excellent']
 
@@ -24,6 +25,7 @@ const RATING_LABELS = ['Poor', 'Not great', 'Fine', 'Good', 'Excellent']
 export function FeedbackClient() {
   const params = useSearchParams()
   const { toast } = useToast()
+  const loader = useBlockingLoader()
 
   const bookingRef = (params.get('ref') ?? '').trim().toUpperCase()
   const signature = params.get('sig') ?? ''
@@ -75,6 +77,7 @@ export function FeedbackClient() {
     }
 
     setSubmitting(true)
+    const done = loader.start('Sending your rating')
     try {
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -96,6 +99,7 @@ export function FeedbackClient() {
       toast({ title: 'We could not reach the clinic', tone: 'error' })
     } finally {
       setSubmitting(false)
+      done()
     }
   }
 

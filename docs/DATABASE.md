@@ -348,7 +348,8 @@ application's own validation and token checks.
 | `npm run db:generate` | Runs `drizzle-kit generate` to diff the TypeScript schema and write a new migration |
 | `npm run db:migrate` | Applies pending migrations, using `DIRECT_DATABASE_URL` when set |
 | `npm run db:seed` | Rebuilds the demo clinic. Deletes the Lumina organisation first, so it is safe to re-run |
-| `npm run db:reset -- --yes` | Drops all three schemas plus `drizzle`, re-migrates and re-seeds |
+| `npm run db:drop -- --yes` | Drops all three schemas plus `drizzle` |
+| `npm run db:reset` | Drops, migrates and seeds in one command. Prints the host first |
 
 A note on `db:generate`: migration `0000_init.sql` is hand written, so there is
 no matching Drizzle snapshot in `db/migrations/meta`. The first time you run

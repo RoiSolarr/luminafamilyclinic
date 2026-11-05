@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/primitives'
 import { SelectField, TextAreaField, TextField } from '@/components/ui/field'
 import { useToast } from '@/components/ui/toast'
+import { useBlockingLoader } from '@/components/loading-overlay'
 
 /**
  * Contact and "still have a question" form.
@@ -26,6 +27,7 @@ export function ContactForm({
   idPrefix?: string
 }) {
   const { toast } = useToast()
+  const loader = useBlockingLoader()
   const [values, setValues] = React.useState({
     name: '',
     email: '',
@@ -61,6 +63,7 @@ export function ContactForm({
     }
 
     setSubmitting(true)
+    const done = loader.start('Sending your message')
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
@@ -90,6 +93,7 @@ export function ContactForm({
       toast({ title: 'We could not reach the clinic', tone: 'error' })
     } finally {
       setSubmitting(false)
+      done()
     }
   }
 

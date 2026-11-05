@@ -89,7 +89,7 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link href="/admin" className="hover:text-ink link-underline">
+              <Link href="/admin" prefetch={false} className="hover:text-ink link-underline">
                 Staff
               </Link>
             </li>

@@ -175,7 +175,8 @@ lumina-family-clinic/
 | `npm run db:generate` | Diff the schema and write a migration |
 | `npm run db:migrate` | Apply pending migrations |
 | `npm run db:seed` | Rebuild the demo clinic, safe to re-run |
-| `npm run db:reset -- --yes` | Drop everything, migrate, seed |
+| `npm run db:drop -- --yes` | Drop all three schemas, nothing else |
+| `npm run db:reset` | Drop, migrate and seed in one go |
 
 ---
 

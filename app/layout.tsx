@@ -7,6 +7,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { MobileBookBar } from '@/components/mobile-book-bar'
 import { ToastProvider } from '@/components/ui/toast'
+import { LoadingOverlayProvider } from '@/components/loading-overlay'
 import { themeScript } from '@/components/theme-toggle'
 
 const body = Inter({
@@ -154,14 +155,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
 
         <ToastProvider>
-          <SiteHeader />
-          <main id="main" className="flex-1">
-            {children}
-          </main>
-          <SiteFooter />
-          <MobileBookBar />
-          {/* Breathing room so the sticky mobile bar never covers the footer. */}
-          <div aria-hidden="true" className="h-20 md:hidden" />
+          <LoadingOverlayProvider>
+            <SiteHeader />
+            <main id="main" className="flex-1">
+              {children}
+            </main>
+            <SiteFooter />
+            <MobileBookBar />
+            {/* Breathing room so the sticky mobile bar never covers the footer. */}
+            <div aria-hidden="true" className="h-20 md:hidden" />
+          </LoadingOverlayProvider>
         </ToastProvider>
       </body>
     </html>

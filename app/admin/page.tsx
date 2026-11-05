@@ -15,6 +15,7 @@ import { formatClockTime, formatLongDate, todayInZone } from '@/lib/time'
 import { STATUS_LABEL, URGENCY_LABEL } from '@/lib/utils'
 import { Badge, Card, EmptyState, type BadgeTone } from '@/components/ui/primitives'
 import { AdminFilters } from '@/components/admin/filters'
+import { SignOutButton } from '@/components/admin/sign-out-button'
 import type { AppointmentStatus } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -84,12 +85,13 @@ export default async function AdminPage({
             Read only. {formatLongDate(today, org.timezone)}, {clinic.timezoneLabel}.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {MOCK_MODE && <Badge tone="warn">Mock mode: data resets on restart</Badge>}
           <Badge tone={hooksConfigured === 4 ? 'ok' : 'warn'}>
             <Plug className="h-3.5 w-3.5" aria-hidden="true" />
             {hooksConfigured} of 4 Zapier hooks set
           </Badge>
+          <SignOutButton />
         </div>
       </header>
 

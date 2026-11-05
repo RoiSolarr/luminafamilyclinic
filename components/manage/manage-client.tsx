@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card, Dialog, DialogContent, DialogTrigger, EmptyState, InitialsAvatar, Skeleton } from '@/components/ui/primitives'
 import { TextAreaField } from '@/components/ui/field'
 import { useToast } from '@/components/ui/toast'
+import { useBlockingLoader } from '@/components/loading-overlay'
 import { Calendar } from '@/components/booking/calendar'
 import type { OrgSettings } from '@/lib/types'
 
@@ -75,6 +76,7 @@ const STATUS_COPY: Record<string, string> = {
 export function ManageClient({ settings, today }: { settings: OrgSettings; today: string }) {
   const params = useSearchParams()
   const { toast } = useToast()
+  const loader = useBlockingLoader()
 
   // The brief used `id`; `ref` reads better in an email. Both are accepted.
   const bookingRef = (params.get('ref') ?? params.get('id') ?? '').trim().toUpperCase()
@@ -123,6 +125,7 @@ export function ManageClient({ settings, today }: { settings: OrgSettings; today
 
   const cancel = async () => {
     setWorking(true)
+    const done = loader.start('Cancelling your appointment')
     try {
       const response = await fetch('/api/cancel', {
         method: 'POST',
@@ -145,6 +148,7 @@ export function ManageClient({ settings, today }: { settings: OrgSettings; today
       toast({ title: 'We could not reach the clinic', tone: 'error' })
     } finally {
       setWorking(false)
+      done()
     }
   }
 
@@ -152,6 +156,7 @@ export function ManageClient({ settings, today }: { settings: OrgSettings; today
 
   const reschedule = async (date: string, time: string) => {
     setWorking(true)
+    const done = loader.start('Moving your appointment')
     try {
       const response = await fetch('/api/reschedule', {
         method: 'POST',
@@ -174,6 +179,7 @@ export function ManageClient({ settings, today }: { settings: OrgSettings; today
       toast({ title: 'We could not reach the clinic', tone: 'error' })
     } finally {
       setWorking(false)
+      done()
     }
   }
 
