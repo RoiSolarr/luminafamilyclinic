@@ -17,7 +17,11 @@ import { log, errorInfo } from '@/lib/logger'
  * must never fail a booking that is already committed.
  */
 
-const ENDPOINT = 'https://api.brevo.com/v3/smtp/email'
+/**
+ * Brevo's send endpoint. Overridable only so a local test can point it at a
+ * stub server; leave BREVO_ENDPOINT unset everywhere else.
+ */
+const ENDPOINT = process.env.BREVO_ENDPOINT || 'https://api.brevo.com/v3/smtp/email'
 const TIMEOUT_MS = 8000
 const MAX_ATTEMPTS = 3
 const BACKOFF_MS = [0, 400, 1200]

@@ -332,3 +332,127 @@ export function bookingRescheduledEmail(
     tag: 'booking-rescheduled',
   }
 }
+
+/* ---------------------------------------------------------------- reminders */
+
+export type ReminderEmailInput = {
+  bookingRef: string
+  patientFirstName: string
+  patientEmail: string
+  serviceName: string
+  providerName: string
+  localDate: string
+  localTime: string
+  timezone: string
+  isTelehealth?: boolean
+  /** Null when the raw manage token is not available. */
+  manageUrl: string | null
+}
+
+/** The day before nudge. Short on purpose: it is read on a phone, in passing. */
+export function appointmentReminderEmail(input: ReminderEmailInput): EmailMessage {
+  const when = `${formatLongDate(input.localDate, input.timezone)} at ${formatClockTime(input.localTime)}`
+  const intro =
+    `Hi ${esc(input.patientFirstName) ? input.patientFirstName : 'there'}, a quick reminder about ` +
+    `your ${input.serviceName} with ${input.providerName}.`
+
+  const changeBlock = input.manageUrl
+    ? button(input.manageUrl, 'Reschedule or cancel')
+    : `<p style="margin:22px 0;font-size:15px;line-height:1.65;color:${COLORS.soft}">
+         Need to change it? Call ${esc(clinic.contact.phone)} and quote
+         <strong>${esc(input.bookingRef)}</strong>.
+       </p>`
+
+  const html = layout({
+    heading: 'Your appointment is tomorrow',
+    intro,
+    body: `
+      ${detailTable([
+        { label: 'When', value: `${when} (${clinic.timezoneLabel})` },
+        { label: 'Service', value: input.serviceName },
+        { label: 'Doctor', value: input.providerName },
+        { label: 'Reference', value: input.bookingRef },
+      ])}
+      ${changeBlock}
+      <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.soft}">
+        ${
+          input.isTelehealth
+            ? 'Join a few minutes early and find somewhere quiet with a stable connection.'
+            : 'Arriving ten minutes early is plenty, or fifteen if it is your first visit.'
+        }
+      </p>`,
+    footerNote: 'If you can no longer make it, releasing the slot helps someone else get seen.',
+  })
+
+  const text = [
+    `${clinic.name}`,
+    '',
+    'Your appointment is tomorrow',
+    '',
+    intro,
+    '',
+    `When:      ${when} (${clinic.timezoneLabel})`,
+    `Service:   ${input.serviceName}`,
+    `Doctor:    ${input.providerName}`,
+    `Reference: ${input.bookingRef}`,
+    '',
+    ...(input.manageUrl
+      ? [`Reschedule or cancel: ${input.manageUrl}`]
+      : [`Need to change it? Call ${clinic.contact.phone} and quote ${input.bookingRef}.`]),
+    textFooter(),
+  ].join('\n')
+
+  return {
+    to: input.patientEmail,
+    toName: input.patientFirstName,
+    subject: `Reminder: your appointment tomorrow at ${formatClockTime(input.localTime)}`,
+    html,
+    text,
+    tag: 'appointment-reminder',
+  }
+}
+
+/** Sent about a day after the visit, with a signed rating link. */
+export function postVisitFeedbackEmail(
+  input: Omit<ReminderEmailInput, 'manageUrl'> & { feedbackUrl: string },
+): EmailMessage {
+  const intro =
+    `Hi ${input.patientFirstName}, thank you for coming in on ` +
+    `${formatLongDate(input.localDate, input.timezone)} to see ${input.providerName}.`
+
+  const html = layout({
+    heading: 'How was your visit?',
+    intro,
+    body: `
+      <p style="margin:18px 0 0;font-size:15px;line-height:1.65;color:${COLORS.soft}">
+        If you have a moment, how did it go? One tap is plenty.
+      </p>
+      ${button(input.feedbackUrl, 'Leave a rating')}
+      <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.soft}">
+        It goes straight to the clinic manager and is not published anywhere.
+      </p>`,
+  })
+
+  const text = [
+    `${clinic.name}`,
+    '',
+    'How was your visit?',
+    '',
+    intro,
+    '',
+    'If you have a moment, how did it go? One tap is plenty:',
+    input.feedbackUrl,
+    '',
+    'It goes straight to the clinic manager and is not published anywhere.',
+    textFooter(),
+  ].join('\n')
+
+  return {
+    to: input.patientEmail,
+    toName: input.patientFirstName,
+    subject: 'How was your visit?',
+    html,
+    text,
+    tag: 'post-visit-feedback',
+  }
+}
