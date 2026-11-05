@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 
 import { getDb, MOCK_MODE, schema } from '@/db'
@@ -30,6 +30,24 @@ import { NoProviderError, NotFoundError, SlotTakenError } from '@/lib/types'
  */
 
 const LIVE_STATUSES: AppointmentStatus[] = ['pending', 'confirmed']
+
+/**
+ * Which appointment statuses each kind of reminder is allowed to go out for.
+ *
+ * These differ, and getting it wrong is silent. A day before reminder must only
+ * go to an appointment that is still happening, otherwise a patient who
+ * cancelled is told to turn up. A post visit note is the opposite case: by the
+ * time it is due the appointment has finished, so requiring it to still be
+ * "live" would mean it could never be sent at all.
+ *
+ * `confirmed` appears in both because a clinic does not always get round to
+ * marking an appointment completed, and the patient should still be asked how
+ * it went. `cancelled` and `no_show` appear in neither.
+ */
+const REMINDER_APPOINTMENT_STATUSES: Record<'24h_reminder' | 'post_visit', AppointmentStatus[]> = {
+  '24h_reminder': ['pending', 'confirmed'],
+  post_visit: ['completed', 'confirmed'],
+}
 
 // --------------------------------------------------------------------------
 // organization, services, providers
@@ -884,7 +902,7 @@ export async function listDueReminders(now = new Date()): Promise<DueReminder[]>
       .filter((r) => r.status === 'pending' && r.scheduledFor.getTime() <= now.getTime())
       .map((r) => {
         const a = store.appointments.find((x) => x.id === r.appointmentId)
-        if (!a || !LIVE_STATUSES.includes(a.status)) return null
+        if (!a || !REMINDER_APPOINTMENT_STATUSES[r.type].includes(a.status)) return null
         const provider = store.providers.find((p) => p.id === a.providerId)!
         const service = store.services.find((s) => s.id === a.serviceId)!
         const patient = store.patients.find((p) => p.id === a.patientId)!
@@ -929,7 +947,17 @@ export async function listDueReminders(now = new Date()): Promise<DueReminder[]>
       and(
         eq(schema.reminders.status, 'pending'),
         lte(schema.reminders.scheduledFor, now),
-        inArray(schema.appointments.status, LIVE_STATUSES),
+        // Each reminder type allows a different set of appointment statuses.
+        or(
+          and(
+            eq(schema.reminders.type, '24h_reminder'),
+            inArray(schema.appointments.status, REMINDER_APPOINTMENT_STATUSES['24h_reminder']),
+          ),
+          and(
+            eq(schema.reminders.type, 'post_visit'),
+            inArray(schema.appointments.status, REMINDER_APPOINTMENT_STATUSES.post_visit),
+          ),
+        ),
       ),
     )
     .orderBy(asc(schema.reminders.scheduledFor))
@@ -989,12 +1017,18 @@ export async function ensurePostVisitReminders(now = new Date()): Promise<number
   }
 
   const db = getDb()
+
+  // The Date objects are converted to ISO strings and cast in SQL rather than
+  // passed straight in. Drizzle's query builder knows a timestamptz column is
+  // expected and serialises a Date for it, but this raw statement gives it no
+  // such context, and the driver throws "Received an instance of Date".
   const result = await db.execute(sql`
     INSERT INTO "communications"."reminders" ("appointment_id", "channel", "type", "scheduled_for", "status")
     SELECT a."id", 'email'::"communications"."reminder_channel", 'post_visit'::"communications"."reminder_type",
            a."ends_at" + interval '24 hours', 'pending'::"communications"."reminder_status"
     FROM "medical"."appointments" a
-    WHERE a."ends_at" BETWEEN ${windowStart} AND ${windowEnd}
+    WHERE a."ends_at" BETWEEN ${windowStart.toISOString()}::timestamptz
+                          AND ${windowEnd.toISOString()}::timestamptz
       AND a."status" IN ('completed', 'confirmed')
     ON CONFLICT ("appointment_id", "type") DO NOTHING
   `)
