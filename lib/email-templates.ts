@@ -146,16 +146,31 @@ export type BookingEmailInput = {
   manageUrl: string | null
   /** The three sentence message written by the triage step, when it exists. */
   aiConfirmationMessage?: string | null
+  /**
+   * True when the slot is held but the clinic has not confirmed it yet, which
+   * is what happens to a booking triage flagged for a person to look at.
+   *
+   * Telling that patient "you are booked in" would be a promise the clinic has
+   * not made, and the one they most need to be able to trust.
+   */
+  awaitingConfirmation?: boolean
 }
 
-/** Sent once a booking is confirmed. */
+/** Sent once triage has run, whether or not it confirmed the booking. */
 export function bookingConfirmationEmail(input: BookingEmailInput): EmailMessage {
   const when = `${formatLongDate(input.localDate, input.timezone)} at ${formatClockTime(input.localTime)}`
+  const pending = input.awaitingConfirmation === true
+
+  const heading = pending ? 'We have your request' : 'You are booked in'
 
   const intro =
     input.aiConfirmationMessage?.trim() ||
-    `Hi ${firstName(input.patientName)}, your ${input.serviceName} with ${input.providerName} is booked. ` +
-      `We will see you on ${when}.`
+    (pending
+      ? `Hi ${firstName(input.patientName)}, we have your request for a ${input.serviceName} with ` +
+        `${input.providerName} on ${when}. The slot is held for you while the clinic confirms it, ` +
+        `and we will be in touch shortly.`
+      : `Hi ${firstName(input.patientName)}, your ${input.serviceName} with ${input.providerName} is booked. ` +
+        `We will see you on ${when}.`)
 
   const rows: Row[] = [
     { label: 'Reference', value: input.bookingRef },
@@ -181,18 +196,20 @@ export function bookingConfirmationEmail(input: BookingEmailInput): EmailMessage
          <strong>${esc(input.bookingRef)}</strong>.
        </p>`
 
+  const closingLine = pending
+    ? 'There is nothing you need to do. If anything changes before we call, use the link above.'
+    : input.isTelehealth
+      ? 'Join a few minutes early and find somewhere quiet with a stable connection.'
+      : 'Arriving ten minutes early is plenty, or fifteen if it is your first visit.'
+
   const html = layout({
-    heading: 'You are booked in',
+    heading,
     intro,
     body: `
       ${detailTable(rows)}
       ${manageBlock}
       <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.soft}">
-        ${
-          input.isTelehealth
-            ? 'Join a few minutes early and find somewhere quiet with a stable connection.'
-            : 'Arriving ten minutes early is plenty, or fifteen if it is your first visit.'
-        }
+        ${closingLine}
       </p>`,
     footerNote: input.manageUrl
       ? 'Keep the link above private. Anyone who has it can change or cancel this appointment.'
@@ -202,7 +219,7 @@ export function bookingConfirmationEmail(input: BookingEmailInput): EmailMessage
   const text = [
     `${clinic.name}`,
     '',
-    'You are booked in',
+    heading,
     '',
     intro,
     '',
@@ -228,7 +245,9 @@ export function bookingConfirmationEmail(input: BookingEmailInput): EmailMessage
   return {
     to: input.patientEmail,
     toName: input.patientName,
-    subject: `Your appointment is booked: ${input.bookingRef}`,
+    subject: pending
+      ? `We have your booking request: ${input.bookingRef}`
+      : `Your appointment is booked: ${input.bookingRef}`,
     html,
     text,
     tag: 'booking-confirmation',

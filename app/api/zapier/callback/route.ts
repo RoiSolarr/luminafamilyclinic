@@ -46,51 +46,96 @@ export async function POST(request: NextRequest) {
   try {
     switch (payload.type) {
       case 'booking_triage': {
+        // Read first, so a repeat delivery of the same callback can be told
+        // apart from the real one. Zapier retries, and without this check a
+        // patient would get the same email again on every retry.
+        const before = await findAppointmentByRef(payload.bookingRef)
+        const firstTriage = before !== null && before.aiUrgency === null
+
+        /**
+         * Nothing the triage flagged is ever auto confirmed, whatever the
+         * automation asked for.
+         *
+         * "Do not auto confirm an emergency" is a clinical safety rule, and a
+         * safety rule does not belong in a prompt. A model can forget a field,
+         * a Zap can be edited by someone in a hurry, and either would silently
+         * start confirming chest pain. Deciding it here means the automation
+         * can only ever be more cautious than the clinic, never less.
+         */
+        const flagged =
+          payload.aiRedFlag === true ||
+          payload.aiUrgency === 'urgent' ||
+          payload.aiUrgency === 'emergency'
+        const confirm = payload.confirm === true && !flagged
+
         const updated = await saveTriage(payload.bookingRef, {
           aiUrgency: payload.aiUrgency,
           aiSummary: payload.aiSummary,
           aiRedFlag: payload.aiRedFlag,
           aiConfirmationMessage: payload.aiConfirmationMessage,
-          confirm: payload.confirm,
+          confirm,
         })
         if (!updated) return fail(404, 'not_found', 'No booking with that reference.')
         log.info('zapier.callback.booking_triage', {
           bookingRef: payload.bookingRef,
           urgency: payload.aiUrgency,
           redFlag: payload.aiRedFlag,
+          confirmed: confirm,
+          // Visible in the logs when the Zap asked to confirm and we refused.
+          heldForReview: payload.confirm === true && flagged,
         })
 
-        // The confirmation is sent from here rather than from the automation,
+        // The email goes out from here rather than from the automation,
         // because this is the first moment the triage message exists. The Zap
         // only has to call the callback; it no longer needs a mail step.
+        //
+        // It is sent whether or not the booking was auto confirmed. A booking
+        // the Zap held back for a person to look at is exactly the one whose
+        // patient is most anxious to hear something, and leaving them with
+        // nothing until a staff member gets to it would be the worst outcome
+        // of the whole flow. The wording differs: a held booking is told the
+        // slot is reserved while the clinic confirms, not that it is booked.
         let emailDelivered = false
-        if (payload.confirm) {
-          const appointment = await findAppointmentByRef(payload.bookingRef)
-          if (appointment) {
-            const result = await sendEmail(
-              bookingConfirmationEmail({
-                bookingRef: appointment.bookingRef,
-                patientName: appointment.patientName,
-                patientEmail: appointment.patientEmail,
-                serviceName: appointment.serviceName,
-                providerName: appointment.providerName,
-                localDate: appointment.localDate,
-                localTime: appointment.localTime,
-                localEndTime: appointment.localEndTime,
-                durationMinutes: appointment.durationMinutes,
-                isTelehealth: appointment.isTelehealth,
-                timezone: appointment.timezone,
-                // Only present when the Zap passes the token back. The link is
-                // built here from our own site URL rather than accepted whole.
-                manageUrl: payload.manageToken
-                  ? `${siteUrl()}/manage?ref=${encodeURIComponent(appointment.bookingRef)}` +
-                    `&token=${encodeURIComponent(payload.manageToken)}`
-                  : null,
-                aiConfirmationMessage: payload.aiConfirmationMessage ?? appointment.aiConfirmationMessage,
-              }),
-            )
-            emailDelivered = result.delivered
-          }
+        const appointment = await findAppointmentByRef(payload.bookingRef)
+        const live =
+          appointment !== null &&
+          (appointment.status === 'pending' || appointment.status === 'confirmed')
+
+        if (firstTriage && live) {
+          const result = await sendEmail(
+            bookingConfirmationEmail({
+              bookingRef: appointment.bookingRef,
+              patientName: appointment.patientName,
+              patientEmail: appointment.patientEmail,
+              serviceName: appointment.serviceName,
+              providerName: appointment.providerName,
+              localDate: appointment.localDate,
+              localTime: appointment.localTime,
+              localEndTime: appointment.localEndTime,
+              durationMinutes: appointment.durationMinutes,
+              isTelehealth: appointment.isTelehealth,
+              timezone: appointment.timezone,
+              // Only present when the Zap passes the token back. The link is
+              // built here from our own site URL rather than accepted whole.
+              manageUrl: payload.manageToken
+                ? `${siteUrl()}/manage?ref=${encodeURIComponent(appointment.bookingRef)}` +
+                  `&token=${encodeURIComponent(payload.manageToken)}`
+                : null,
+              // The triage message is used only when the booking really is
+              // confirmed. It is written by the automation, which believes it
+              // is confirming every booking, so on a held booking it would
+              // open with "your appointment is confirmed" directly under a
+              // heading saying we have not confirmed it yet. The template's
+              // own wording is correct in that case, so it wins.
+              aiConfirmationMessage: confirm
+                ? (payload.aiConfirmationMessage ?? appointment.aiConfirmationMessage)
+                : null,
+              // Read back after the update, so this reflects what actually
+              // happened rather than what the Zap asked for.
+              awaitingConfirmation: appointment.status !== 'confirmed',
+            }),
+          )
+          emailDelivered = result.delivered
         }
 
         return ok({ applied: 'booking_triage', emailDelivered })
