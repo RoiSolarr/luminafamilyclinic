@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
 
 import { clinic } from '@/config/clinic'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SignOutButton } from '@/components/admin/sign-out-button'
+import { AdminNavDrawer } from '@/components/admin/admin-nav'
 
 /**
  * Top bar for the staff area.
@@ -14,6 +14,10 @@ import { SignOutButton } from '@/components/admin/sign-out-button'
  * Deliberately not the patient header. No Services, Doctors, FAQ or Contact,
  * and no "Book an appointment": the dashboard is read only, and offering a
  * booking button on it would be offering something it cannot do.
+ *
+ * There is no link out to the patient site either. Staff keep this open all
+ * shift, and a stray click that drops them back on the marketing home page is
+ * a small annoyance every time.
  *
  * Sign out is hidden on the login page, where there is no session to end.
  */
@@ -25,11 +29,18 @@ export function AdminHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-line bg-surface/95 backdrop-blur">
       <div className="container flex h-16 items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary"
+          {/* The sidebar collapses below `lg`, so below that width the same
+              links live behind this button. */}
+          {!onLoginPage && <AdminNavDrawer />}
+
+          {/* The mark returns to the dashboard, the way a logo does in every
+              other admin tool. It is not a route out to the patient site. */}
+          <Link
+            href="/admin"
+            aria-label="Staff dashboard"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
               <path
                 d="M4 17h16M7.5 17a4.5 4.5 0 0 1 9 0"
                 stroke="rgb(var(--c-primary-ink))"
@@ -44,7 +55,7 @@ export function AdminHeader() {
                 opacity="0.75"
               />
             </svg>
-          </span>
+          </Link>
 
           <div className="min-w-0">
             <p className="truncate font-display text-fluid-base font-semibold leading-tight">
@@ -56,15 +67,6 @@ export function AdminHeader() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Link
-            href="/"
-            prefetch={false}
-            className="tap-target hidden items-center gap-1.5 rounded-full px-3 text-fluid-sm text-ink-soft transition-colors hover:text-ink sm:inline-flex"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Clinic site
-          </Link>
-
           <ThemeToggle className="hidden sm:inline-flex" />
 
           {!onLoginPage && <SignOutButton />}

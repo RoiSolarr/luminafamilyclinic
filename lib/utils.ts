@@ -1,5 +1,38 @@
 import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
+
+/**
+ * `text-*` is ambiguous in Tailwind: it sets either a font size or a colour.
+ * tailwind-merge tells them apart from its own list of scale names, and the
+ * fluid scale in tailwind.config.ts is not on it, so `text-fluid-sm` was read
+ * as a colour and silently dropped the `text-primary-ink` beside it.
+ *
+ * Every Button carries a size class, so every Button lost its text colour and
+ * fell back to inheriting from whatever it sat in. On a teal filled button
+ * that meant dark text on a dark background.
+ *
+ * Naming the scale here fixes it once for every component that uses `cn`.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [
+        {
+          text: [
+            'fluid-xs',
+            'fluid-sm',
+            'fluid-base',
+            'fluid-lg',
+            'fluid-xl',
+            'fluid-2xl',
+            'fluid-3xl',
+            'fluid-4xl',
+          ],
+        },
+      ],
+    },
+  },
+})
 
 /** Merge Tailwind classes without fighting over conflicting utilities. */
 export function cn(...inputs: ClassValue[]) {

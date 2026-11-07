@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { FilterX, RotateCw, Search, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -24,14 +24,26 @@ export function AdminFilters({
   providers,
   today,
   current,
+  showPastToggle = true,
+  searchPlaceholder = 'Search reference, patient, email, phone, doctor',
+  dateHint,
 }: {
   providers: { id: string; fullName: string }[]
   today: string
   current: { date: string; provider: string; status: string; past: boolean; q: string }
+  /** Off on Booking History, where past rows are the whole point. */
+  showPastToggle?: boolean
+  searchPlaceholder?: string
+  /** The default describes an upcoming list, which is wrong on history. */
+  dateHint?: string
 }) {
   const router = useRouter()
   const params = useSearchParams()
   const loader = useBlockingLoader()
+
+  // The bar appears on both the dashboard and the appointments page, so it
+  // writes back to wherever it is mounted rather than to a hardcoded /admin.
+  const pathname = usePathname()
 
   const [search, setSearch] = React.useState(current.q)
   const [refreshing, setRefreshing] = React.useState(false)
@@ -47,9 +59,9 @@ export function AdminFilters({
       const next = new URLSearchParams(params.toString())
       mutate(next)
       const query = next.toString()
-      router.push(query ? `/admin?${query}` : '/admin')
+      router.push(query ? `${pathname}?${query}` : pathname)
     },
-    [params, router],
+    [params, pathname, router],
   )
 
   const apply = (key: string, value: string) =>
@@ -102,7 +114,7 @@ export function AdminFilters({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search reference, patient, email, phone, doctor"
+            placeholder={searchPlaceholder}
             aria-label="Search appointments"
             className={cn(
               'h-12 w-full rounded-xl border border-line bg-surface pl-11 pr-10 text-ink',
@@ -132,42 +144,47 @@ export function AdminFilters({
 
       {/* Quick ranges */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-fluid-xs uppercase tracking-wide text-ink-muted">Jump to</span>
-        {quickDates.map((quick) => {
-          const active = current.date === quick.date
-          return (
-            <button
-              key={quick.label}
-              type="button"
-              aria-pressed={active}
-              onClick={() => apply('date', active ? '' : quick.date)}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-fluid-xs transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                active
-                  ? 'border-primary bg-primary text-primary-ink'
-                  : 'border-line bg-surface text-ink-soft hover:border-primary/50 hover:text-ink',
-              )}
-            >
-              {quick.label}
-            </button>
-          )
-        })}
+        {showPastToggle && (
+          <span className="text-fluid-xs uppercase tracking-wide text-ink-muted">Jump to</span>
+        )}
+        {showPastToggle &&
+          quickDates.map((quick) => {
+            const active = current.date === quick.date
+            return (
+              <button
+                key={quick.label}
+                type="button"
+                aria-pressed={active}
+                onClick={() => apply('date', active ? '' : quick.date)}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-fluid-xs transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                  active
+                    ? 'border-primary bg-primary text-primary-ink'
+                    : 'border-line bg-surface text-ink-soft hover:border-primary/50 hover:text-ink',
+                )}
+              >
+                {quick.label}
+              </button>
+            )
+          })}
 
-        <button
-          type="button"
-          aria-pressed={current.past}
-          onClick={() => apply('past', current.past ? '' : '1')}
-          className={cn(
-            'rounded-full border px-3 py-1.5 text-fluid-xs transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-            current.past
-              ? 'border-primary bg-primary text-primary-ink'
-              : 'border-line bg-surface text-ink-soft hover:border-primary/50 hover:text-ink',
-          )}
-        >
-          Include past
-        </button>
+        {showPastToggle && (
+          <button
+            type="button"
+            aria-pressed={current.past}
+            onClick={() => apply('past', current.past ? '' : '1')}
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-fluid-xs transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              current.past
+                ? 'border-primary bg-primary text-primary-ink'
+                : 'border-line bg-surface text-ink-soft hover:border-primary/50 hover:text-ink',
+            )}
+          >
+            Include past
+          </button>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <Button
@@ -182,7 +199,7 @@ export function AdminFilters({
           </Button>
 
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={() => router.push('/admin')}>
+            <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}>
               <FilterX className="h-4 w-4" aria-hidden="true" />
               Clear
             </Button>
@@ -198,7 +215,7 @@ export function AdminFilters({
           type="date"
           value={current.date}
           onChange={(e) => apply('date', e.target.value)}
-          hint={`Empty shows everything upcoming. Today is ${today}.`}
+          hint={dateHint ?? `Empty shows everything upcoming. Today is ${today}.`}
         />
 
         <SelectField

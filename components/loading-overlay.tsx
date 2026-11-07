@@ -247,6 +247,49 @@ export function LoadingOverlayProvider({ children }: { children: React.ReactNode
     }
   }, [hideNow, clearTimers])
 
+  /**
+   * The page is frozen for as long as the overlay is up.
+   *
+   * Covering the viewport is not enough on its own. A fixed element is not a
+   * scroll container, so a wheel or a swipe over it passes straight through
+   * to the document behind and the page slides around under the loader.
+   * Taking the scroll off the document itself is the only thing that stops
+   * every input at once: wheel, trackpad, touch, scrollbar drag and keyboard.
+   *
+   * The scroll position survives, because `overflow: hidden` on the root
+   * keeps the offset rather than resetting it.
+   */
+  React.useEffect(() => {
+    if (!visible || typeof document === 'undefined') return
+
+    const body = document.body
+    const html = document.documentElement
+    const saved = {
+      bodyOverflow: body.style.overflow,
+      bodyPaddingRight: body.style.paddingRight,
+      htmlOverflow: html.style.overflow,
+    }
+
+    // Hiding the overflow also hides the scrollbar, and the page would jump
+    // sideways by its width at the exact moment the loader appears. Padding
+    // of the same width holds everything still. Zero on overlay scrollbars,
+    // which is every phone and most trackpad setups.
+    const scrollbar = window.innerWidth - html.clientWidth
+    if (scrollbar > 0) {
+      const existing = Number.parseFloat(getComputedStyle(body).paddingRight) || 0
+      body.style.paddingRight = `${existing + scrollbar}px`
+    }
+
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+
+    return () => {
+      html.style.overflow = saved.htmlOverflow
+      body.style.overflow = saved.bodyOverflow
+      body.style.paddingRight = saved.bodyPaddingRight
+    }
+  }, [visible])
+
   const value = React.useMemo<LoaderContextValue>(() => ({ start, track }), [start, track])
 
   return (
@@ -270,8 +313,14 @@ export function LoadingOverlayProvider({ children }: { children: React.ReactNode
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0 : 0.16 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-bg/92 backdrop-blur-sm"
-            // Swallows clicks, taps and key presses while it is up.
+            // `touch-action: none` stops a swipe that starts on the overlay
+            // from panning anything, including a scrollable panel underneath
+            // that the document level lock does not cover. `overscroll-none`
+            // keeps the gesture from chaining outwards to the page.
+            className="fixed inset-0 z-[100] flex touch-none select-none flex-col items-center justify-center gap-5 overscroll-none bg-bg/92 backdrop-blur-sm"
+            // Swallows clicks, taps and key presses while it is up. Tab is
+            // the one exception: trapping focus in a status message would
+            // strand a keyboard user with nowhere to go.
             onPointerDownCapture={(e) => e.preventDefault()}
             onKeyDownCapture={(e) => {
               if (e.key !== 'Tab') e.preventDefault()

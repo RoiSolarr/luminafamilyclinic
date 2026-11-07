@@ -609,6 +609,49 @@ async function findAppointmentById(id: string): Promise<AppointmentRecord | null
 // cancel and reschedule
 // --------------------------------------------------------------------------
 
+/**
+ * Staff approval: pending becomes confirmed.
+ *
+ * Deliberately narrow. A general "set the status to whatever" helper invites
+ * transitions that make no sense, such as reviving a cancelled booking whose
+ * slot has since been given away. Declining goes through `cancelAppointment`
+ * instead, so the pending reminders are stopped by the same code that stops
+ * them when a patient cancels.
+ */
+export async function confirmAppointment(bookingRef: string): Promise<AppointmentRecord> {
+  if (MOCK_MODE) {
+    const store = mockStore()
+    const a = store.appointments.find((x) => x.bookingRef === bookingRef)
+    if (!a) throw new NotFoundError('We could not find that booking.')
+    if (a.status !== 'pending') {
+      throw new NotFoundError('That booking is no longer awaiting confirmation.')
+    }
+    a.status = 'confirmed'
+    return mockRecord(a.id)!
+  }
+
+  const db = getDb()
+  const [updated] = await db
+    .update(schema.appointments)
+    .set({ status: 'confirmed', updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.appointments.bookingRef, bookingRef),
+        // Only a pending booking can be approved. Narrowing here rather than
+        // in the route means two staff members clicking at once cannot both
+        // "succeed": the second update matches no row.
+        eq(schema.appointments.status, 'pending'),
+      ),
+    )
+    .returning({ id: schema.appointments.id })
+
+  if (!updated) throw new NotFoundError('That booking is no longer awaiting confirmation.')
+
+  const record = await findAppointmentById(updated.id)
+  if (!record) throw new NotFoundError('We could not find that booking.')
+  return record
+}
+
 export async function cancelAppointment(
   bookingRef: string,
   reason: string | null,
